@@ -37,15 +37,17 @@ if st.session_state.step == "select_theme":
         ["🕰️ 레트로 트래블 (인사동/데이트)", "🧸 꾸러기 스케치북 (키즈/장난감)", "🔥 커뮤니티 라이브 (단체 모임/공유)"]
     )
     
-    st.markdown("### 2. 현장의 사진 5장을 선택해주세요")
+    st.markdown("### 2. 현장의 사진을 올려주세요 (최대 5장)")
     uploaded_files = st.file_uploader("사진을 이곳에 끌어다 놓으세요", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
     
     user_text = st.text_input("✏️ 한 줄 추억 남기기 (최대 20자)", placeholder="예: 인사동 거리에서 우리의 첫 기록!")
 
     # 렌더링 시작 버튼
     if st.button("✨ 10초 영화 인화하기 (필름 1장 차감)", use_container_width=True):
-        if len(uploaded_files) != 5:
-            st.warning("⚠️ 정확히 5장의 사진을 올려주셔야 인화기가 작동합니다!")
+        if len(uploaded_files) == 0:
+            st.warning("⚠️ 사진을 1장 이상 올려주셔야 인화기가 작동합니다!")
+        elif len(uploaded_files) > 5:
+            st.warning("⚠️ 사진은 최대 5장까지만 묶어서 인화할 수 있습니다!")
         else:
             st.session_state.remaining_films -= 1
             st.session_state.step = "rendering"
@@ -60,7 +62,9 @@ elif st.session_state.step == "rendering":
     progress_bar = st.progress(0)
     
     images = []
-    # 5장 이미지 리사이징 및 텍스트 합성 처리
+    # 업로드된 사진 수만큼 리사이징 및 텍스트 합성 처리
+    total_files = len(st.session_state.uploaded_files)
+    
     for i, file in enumerate(st.session_state.uploaded_files):
         try:
             img = Image.open(file).convert("RGB")
@@ -79,9 +83,16 @@ elif st.session_state.step == "rendering":
             st.stop()
             
         time.sleep(0.5) # 인화되는 듯한 시각적 효과
-        progress_bar.progress((i + 1) * 20)
+        
+        # 프로그레스 바 계산 로직 수정 (업로드된 사진 수에 맞게 분배)
+        progress = int(((i + 1) / total_files) * 100)
+        progress_bar.progress(progress)
         
     # 메모리상에서 GIF 굽기 (imageio 사용)
+    # 사진이 1장일 경우 GIF 프레임이 1개면 에러가 날 수 있으므로, 1장일 때는 같은 사진을 2번 반복하여 무빙 효과 부여
+    if len(images) == 1:
+        images.append(images[0])
+        
     gif_io = io.BytesIO()
     imageio.mimsave(gif_io, images, format='GIF', duration=500, loop=0)
     st.session_state.gif_bytes = gif_io.getvalue()
