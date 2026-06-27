@@ -93,7 +93,7 @@ if st.button("🚀 10초 영화 인화 시작", type="primary"):
         if s3_client and sqs_client:
             # 금고에서 버킷과 대기열 이름도 꺼내옵니다
            bucket_name = "aipola-temp-storage-1782548118"
-            queue_url = "https://sqs.ap-northeast-2.amazonaws.com/737138011566/aipola-render-queue"
+           queue_url = "https://sqs.ap-northeast-2.amazonaws.com/737138011566/aipola-render-queue"
             request_id = str(uuid.uuid4())
             s3_keys = []
             
