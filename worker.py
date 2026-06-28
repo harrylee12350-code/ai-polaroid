@@ -3,11 +3,12 @@ import time
 import json
 import uuid
 import boto3
-from moviepy.editor import ImageClip
+from moviepy.editor import ImageClip, CompositeVideoClip
 from dotenv import load_dotenv
 
 load_dotenv()
 
+# S3 창고 이름 대못 박기
 S3_BUCKET = "aipola-temp-storage-1782548118"
 SQS_URL = os.getenv("SQS_QUEUE_URL", "https://sqs.ap-northeast-2.amazonaws.com/737138011566/aipola-render-queue")
 AWS_REGION = "ap-northeast-2"
@@ -18,11 +19,20 @@ sqs = boto3.client('sqs', region_name=AWS_REGION)
 def make_zoom_video(image_path, output_path):
     print(f"🎬 렌더링 시작: {image_path}")
     clip = ImageClip(image_path).set_duration(10)
+    
+    # 1. 원본 해상도를 짝수로 고정 (블랙스크린 방지)
     w, h = clip.size
     w = w if w % 2 == 0 else w - 1
     h = h if h % 2 == 0 else h - 1
     clip = clip.resize(newsize=(w, h))
-    clip.write_videofile(output_path, fps=24, codec='libx264', audio=False, logger=None)
+    
+    # 2. 줌인 효과 및 바깥 액자 고정
+    zoomed_clip = clip.resize(lambda t: 1 + 0.02 * t).set_position(('center', 'center'))
+    final_clip = CompositeVideoClip([zoomed_clip], size=(w, h))
+    
+    # 3. 💡 [핵심 수정] 초고속 렌더링 모드 가동 (fps=15, preset='ultrafast')
+    final_clip.write_videofile(output_path, fps=15, codec='libx264', preset='ultrafast', audio=False, logger=None)
+    
     print(f"✅ 렌더링 완료: {output_path}")
     return output_path
 

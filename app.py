@@ -50,30 +50,27 @@ if st.button("🚀 10초 영화 인화 시작"):
         order_payload = {"request_id": request_id, "s3_keys": s3_keys}
         sqs.send_message(QueueUrl=SQS_URL, MessageBody=json.dumps(order_payload))
         
-        # 3. 완성본 대기 및 수령 (핵심 추가 기능)
-        with st.spinner("로봇이 영상을 인화하고 있습니다. (약 15~30초 소요) 화면을 닫지 말고 잠시만 기다려주세요! ⏳"):
+        # 3. 💡 [핵심 수정] 고객 기대감 부여 멘트 & 대기 시간 연장
+        with st.spinner("🎬 감독님, 필름을 현상하고 특수효과(Zoom-in)를 입히는 중입니다! (약 15초 소요) 화면을 닫지 마세요..."):
             s3_video_key = f"rendered/{request_id}.mp4"
-            max_retries = 30  # 최대 60초 대기
+            max_retries = 90  # 💡 2초씩 90번 = 최대 180초 대기 (폰에서 시간 초과 방지)
             video_ready = False
             
             for _ in range(max_retries):
                 try:
-                    # 파일이 존재하는지 S3에 똑똑 노크
                     s3.head_object(Bucket=S3_BUCKET, Key=s3_video_key)
                     video_ready = True
                     break
                 except:
-                    time.sleep(2) # 2초 대기 후 다시 확인
+                    time.sleep(2)
             
             if video_ready:
                 st.balloons()
                 st.success("✨ 10초 영화가 완성되었습니다!")
                 
-                # S3에서 영상 가져와서 화면에 틀기
                 video_url = s3.generate_presigned_url('get_object', Params={'Bucket': S3_BUCKET, 'Key': s3_video_key}, ExpiresIn=3600)
                 st.video(video_url)
                 
-                # 다운로드 버튼을 위한 데이터 추출
                 video_obj = s3.get_object(Bucket=S3_BUCKET, Key=s3_video_key)
                 video_bytes = video_obj['Body'].read()
                 
