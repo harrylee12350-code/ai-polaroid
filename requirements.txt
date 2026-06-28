@@ -2,3 +2,5 @@ streamlit
 Pillow
 imageio
 boto3
+moviepy
+python-dotenv
