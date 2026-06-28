@@ -10,7 +10,7 @@ load_dotenv()
 # 💡 [핵심 수정] Secrets 수첩 대신 Railway 환경 변수를 바로 바라보도록 고정
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-AWS_REGION = "ap- northeast-2"
+AWS_REGION = "ap-northeast-2"
 
 # 💡 [핵심 수정] 공장(worker.py)과 정확히 일치하는 S3 창고 주소와 SQS 주문서 주소 매핑
 S3_BUCKET = os.getenv("S3_BUCKET_NAME", "aipola-temp-storage-1782548118")
