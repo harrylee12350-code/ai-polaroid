@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# 환경 변수 세팅
+# S3 창고 대못 박기 유지!
 S3_BUCKET = "aipola-temp-storage-1782548118"
 SQS_URL = os.getenv("SQS_QUEUE_URL", "https://sqs.ap-northeast-2.amazonaws.com/737138011566/aipola-render-queue")
 AWS_REGION = "ap-northeast-2"
@@ -18,9 +18,18 @@ sqs = boto3.client('sqs', region_name=AWS_REGION)
 
 def make_zoom_video(image_path, output_path):
     print(f"🎬 렌더링 시작: {image_path}")
+    
+    # 1. 이미지를 불러와서 10초짜리 클립으로 만듭니다.
     clip = ImageClip(image_path).set_duration(10)
-    video = clip.resize(lambda t: 1 + 0.02 * t)
-    video.write_videofile(output_path, fps=24, codec='libx264', audio=False, logger=None)
+    
+    # 2. (핵심) H.264 코덱은 가로세로 픽셀이 '짝수'여야 블랙 스크린이 안 뜹니다. 짝수로 강제 조정!
+    w, h = clip.size
+    w = w if w % 2 == 0 else w - 1
+    h = h if h % 2 == 0 else h - 1
+    clip = clip.resize(newsize=(w, h))
+    
+    # 3. 줌인 효과를 빼고 가장 안전하게 정적 영상으로 렌더링합니다.
+    clip.write_videofile(output_path, fps=24, codec='libx264', audio=False, logger=None)
     print(f"✅ 렌더링 완료: {output_path}")
     return output_path
 
@@ -40,7 +49,6 @@ def process_queue():
                     receipt_handle = message['ReceiptHandle']
                     body = message['Body']
                     
-                    # 💡 [핵심 수정] 프론트엔드 주문서 완벽 해독 (여러 장이 와도 첫 번째 사진 추출)
                     try:
                         order_data = json.loads(body)
                         if 's3_keys' in order_data and isinstance(order_data['s3_keys'], list):
@@ -58,15 +66,13 @@ def process_queue():
                     s3_video_key = f"rendered/video_{timestamp}.mp4"
 
                     try:
-                        # S3 다운로드 -> 렌더링 -> S3 업로드
                         s3.download_file(S3_BUCKET, s3_image_key, local_image_path)
                         make_zoom_video(local_image_path, local_video_path)
                         s3.upload_file(local_video_path, S3_BUCKET, s3_video_key)
                         print(f"☁️ S3 업로드 완료! 영화가 서버에 저장되었습니다: {s3_video_key}")
                     except Exception as inner_e:
-                        print(f"⚠️ 개별 주문 처리 실패 (S3에 파일이 없거나 삭제됨): {inner_e}")
+                        print(f"⚠️ 개별 주문 처리 실패: {inner_e}")
                     finally:
-                        # 💡 [핵심 수정] 작업 성공/실패 여부와 상관없이 SQS에서 주문서 무조건 삭제 (무한 에러 방지)
                         sqs.delete_message(QueueUrl=SQS_URL, ReceiptHandle=receipt_handle)
                         print("🧹 주문서 파기 및 큐 정리 완료!\n")
                         
