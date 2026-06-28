@@ -17,5 +17,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 5. 우리의 핵심 코드(worker.py 등) 복사
 COPY . .
 
-# 6. 서버가 켜질 때 실행할 명령어 (렌더링 워커 가동)
-CMD ["python", "worker.py"]
+# 6. 앞문(웹사이트)과 뒷문(공장)을 동시에 여는 핵심 명령어!
+CMD ["sh", "-c", "python worker.py & streamlit run app.py --server.port=$PORT --server.address=0.0.0.0"]
