@@ -1,5 +1,5 @@
 streamlit 
-Pillow
+Pillow==9.5.0
 imageio
 boto3
 moviepy==1.0.3
