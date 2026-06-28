@@ -4,10 +4,11 @@ import uuid
 import json
 from PIL import Image, ImageOps
 import io
+import os  # 💡 클라우드 환경 변수 차단을 위해 추가된 마법의 도구
 
 # ==========================================
 # [AI Pola] 메인 애플리케이션 소스 코드 (app.py)
-# 모바일 회전 버그 해결 + 2~5장 업로드 + 최고 보안(Secrets) 적용판
+# 모바일 회전 버그 해결 + 2~5장 업로드 + 클라우드(Railway) 완벽 호환판
 # ==========================================
 
 # 1. 페이지 기본 설정
@@ -17,16 +18,33 @@ st.set_page_config(
     layout="centered"
 )
 
-# 2. AWS 서비스 클라이언트 초기화 함수 (최고 보안 방식)
+# 2. AWS 서비스 클라이언트 초기화 함수 (Railway 환경 변수 & 로컬 Secrets 완벽 통합)
 def get_aws_client(service_name):
     try:
-        # st.secrets라는 튼튼한 금고에서 알아서 키를 꺼내옵니다.
-        return boto3.client(
-            service_name,
-            aws_access_key_id=st.secrets["AWS_ACCESS_KEY"],
-            aws_secret_access_key=st.secrets["AWS_SECRET_KEY"],
-            region_name=st.secrets.get("AWS_REGION", "ap-northeast-2")
-        )
+        # 💡 [핵심 수정] Railway 대시보드에 입력해 두신 암호키를 직접 꺼내옵니다.
+        aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
+        aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+        aws_region = os.getenv("AWS_DEFAULT_REGION", "ap-northeast-2")
+        
+        # 만약 로컬 컴퓨터에서 테스트할 때를 위해 기존 st.secrets 방식도 백업으로 남겨둡니다.
+        if not aws_access_key or not aws_secret_key:
+            try:
+                aws_access_key = st.secrets["AWS_ACCESS_KEY"]
+                aws_secret_key = st.secrets["AWS_SECRET_KEY"]
+                aws_region = st.secrets.get("AWS_REGION", "ap-northeast-2")
+            except:
+                pass
+
+        if aws_access_key and aws_secret_key:
+            return boto3.client(
+                service_name,
+                aws_access_key_id=aws_access_key,
+                aws_secret_access_key=aws_secret_key,
+                region_name=aws_region
+            )
+        else:
+            # Railway 변수가 이미 시스템에 완벽히 로드된 경우 자동 매핑
+            return boto3.client(service_name, region_name=aws_region)
     except Exception as e:
         st.error(f"서버 내부 통신 금고(Secrets) 연결 오류가 발생했습니다: {e}")
         return None
@@ -91,9 +109,17 @@ if st.button("🚀 10초 영화 인화 시작", type="primary"):
         sqs_client = get_aws_client('sqs')
         
         if s3_client and sqs_client:
-            # 금고에서 버킷과 대기열 이름도 꺼내옵니다
-            bucket_name = "aipola-temp-storage-1782548118"
-            queue_url = "https://sqs.ap-northeast-2.amazonaws.com/737138011566/aipola-render-queue"
+            # 💡 [핵심 수정] 버킷명과 큐 주소도 Railway 환경 변수에서 최우선으로 유연하게 가져옵니다.
+            bucket_name = os.getenv("S3_BUCKET_NAME")
+            if not bucket_name:
+                try: bucket_name = st.secrets.get("S3_BUCKET_NAME", "ai-pola-bucket")
+                except: bucket_name = "ai-pola-bucket"
+                    
+            queue_url = os.getenv("SQS_QUEUE_URL")
+            if not queue_url:
+                try: queue_url = st.secrets.get("SQS_QUEUE_URL", "ai-pola-queue")
+                except: queue_url = "ai-pola-queue"
+            
             request_id = str(uuid.uuid4())
             s3_keys = []
             
