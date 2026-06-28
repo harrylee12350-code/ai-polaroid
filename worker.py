@@ -3,7 +3,7 @@ import time
 import json
 import uuid
 import boto3
-from PIL import Image
+from PIL import Image, ImageOps  # 💡 ImageOps 추가 (비율 유지 패딩용)
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,23 +16,23 @@ s3 = boto3.client('s3', region_name=AWS_REGION)
 sqs = boto3.client('sqs', region_name=AWS_REGION)
 
 def make_light_gif(image_paths, output_path):
-    print(f"🎬 초경량 GIF 생성 시작: {image_paths}")
+    print(f"🎬 비율 유지 GIF 생성 시작: {image_paths}")
     
-    # 첫 번째 이미지 크기를 기준으로 통일
     img_list = [Image.open(path) for path in image_paths]
+    
+    # 첫 번째 이미지의 크기를 기준 캔버스로 설정
     target_size = img_list[0].size
     
     resized_images = []
     for img in img_list:
-        # 크기 규격 맞추기
-        if img.size != target_size:
-            img = img.resize(target_size, Image.Resampling.LANCZOS)
-        # GIF 변환을 위해 RGB 모드로 통일
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        resized_images.append(img)
+        # 💡 [핵심 수정] 이미지를 억지로 늘리지 않고, 비율을 유지하며 빈 공간을 검은색('black')으로 채움
+        padded_img = ImageOps.pad(img, target_size, color='black')
+        
+        if padded_img.mode != 'RGB':
+            padded_img = padded_img.convert('RGB')
+        resized_images.append(padded_img)
     
-    # 💡 한 사진당 약 2초씩(duration=2000) 보여주며 무한 반복(loop=0)하는 GIF 저장
+    # 한 사진당 2초씩 보여주며 무한 반복하는 GIF로 저장
     resized_images[0].save(
         output_path,
         save_all=True,
