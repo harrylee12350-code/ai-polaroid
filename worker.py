@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 환경 변수 세팅
-S3_BUCKET = os.getenv("S3_BUCKET_NAME", "aipola-temp-storage-1782548118")
+S3_BUCKET = "aipola-temp-storage-1782548118"
 SQS_URL = os.getenv("SQS_QUEUE_URL", "https://sqs.ap-northeast-2.amazonaws.com/737138011566/aipola-render-queue")
 AWS_REGION = "ap-northeast-2"
 

@@ -13,7 +13,7 @@ AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = "ap-northeast-2"
 
 # 💡 [핵심 수정] 공장(worker.py)과 정확히 일치하는 S3 창고 주소와 SQS 주문서 주소 매핑
-S3_BUCKET = os.getenv("S3_BUCKET_NAME", "aipola-temp-storage-1782548118")
+S3_BUCKET = "aipola-temp-storage-1782548118"
 SQS_URL = os.getenv("SQS_QUEUE_URL", "https://sqs.ap-northeast-2.amazonaws.com/737138011566/aipola-render-queue")
 
 # AWS 클라이언트 안전하게 연결
