@@ -38,7 +38,6 @@ if st.button("🚀 10초 영화 인화 시작"):
         request_id = str(uuid.uuid4())
         s3_keys = []
         
-        # 1. 파일 업로드
         for i, file in enumerate(uploaded_files):
             st.info(f"📷 {i+1}번째 이미지 업로드 중...")
             file_ext = file.name.split('.')[-1]
@@ -46,41 +45,39 @@ if st.button("🚀 10초 영화 인화 시작"):
             s3.upload_fileobj(file, S3_BUCKET, s3_key)
             s3_keys.append(s3_key)
         
-        # 2. 주문서 전송
         order_payload = {"request_id": request_id, "s3_keys": s3_keys}
         sqs.send_message(QueueUrl=SQS_URL, MessageBody=json.dumps(order_payload))
         
-        # 3. 고객 대기 및 수령 (엔진 최적화로 대기 시간 대폭 단축)
-        with st.spinner("🎬 로봇이 모든 사진을 현상하여 10초 영화를 조립하고 있습니다! 잠시만 기다려주세요..."):
-            s3_video_key = f"rendered/{request_id}.mp4"
-            max_retries = 90  # 최대 180초 대기 방어막 유지
-            video_ready = False
+        with st.spinner("🎬 영화를 초고속 인화 중입니다! 잠시만 기다려주세요...⏳"):
+            s3_gif_key = f"rendered/{request_id}.gif"
+            max_retries = 30  # 초고속 가동이므로 1분이면 넉넉합니다.
+            gif_ready = False
             
             for _ in range(max_retries):
                 try:
-                    s3.head_object(Bucket=S3_BUCKET, Key=s3_video_key)
-                    video_ready = True
+                    s3.head_object(Bucket=S3_BUCKET, Key=s3_gif_key)
+                    gif_ready = True
                     break
                 except:
                     time.sleep(2)
             
-            if video_ready:
+            if gif_ready:
                 st.balloons()
-                st.success("✨ 10초 영화가 완성되었습니다!")
+                st.success("✨ 영화 인화가 완료되었습니다!")
                 
-                # 스마트폰용 영상 스트리밍 주소 발급
-                video_url = s3.generate_presigned_url('get_object', Params={'Bucket': S3_BUCKET, 'Key': s3_video_key}, ExpiresIn=3600)
-                st.video(video_url)
+                # 화면에 GIF 표출
+                gif_url = s3.generate_presigned_url('get_object', Params={'Bucket': S3_BUCKET, 'Key': s3_gif_key}, ExpiresIn=3600)
+                st.image(gif_url, use_container_width=True)
                 
-                # 다운로드 버튼 활성화
-                video_obj = s3.get_object(Bucket=S3_BUCKET, Key=s3_video_key)
-                video_bytes = video_obj['Body'].read()
+                # 저장 및 보내기용 다운로드 버튼 (필수 기능)
+                gif_obj = s3.get_object(Bucket=S3_BUCKET, Key=s3_gif_key)
+                gif_bytes = gif_obj['Body'].read()
                 
                 st.download_button(
-                    label="💾 내 폰에 완성된 영상 저장하기",
-                    data=video_bytes,
-                    file_name="AI_Pola_Movie.mp4",
-                    mime="video/mp4"
+                    label="💾 내 폰에 영화 저장하기 (공유 가능)",
+                    data=gif_bytes,
+                    file_name="AI_Pola_Movie.gif",
+                    mime="image/gif"
                 )
             else:
-                st.error("시간이 초과되었습니다. 잠시 후 다시 시도해주세요.")
+                st.error("서버 정체로 처리가 지연되었습니다. 잠시 후 다시 시도해주세요.")
