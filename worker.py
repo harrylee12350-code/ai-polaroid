@@ -3,7 +3,7 @@ import time
 import json
 import uuid
 import boto3
-import urllib.request  # 💡 폰트 다운로드를 위한 모듈 추가
+import urllib.request
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 from dotenv import load_dotenv
 
@@ -16,14 +16,15 @@ AWS_REGION = "ap-northeast-2"
 s3 = boto3.client('s3', region_name=AWS_REGION)
 sqs = boto3.client('sqs', region_name=AWS_REGION)
 
-# 💡 [핵심 해결책] Railway 서버에 한글 폰트(나눔고딕)를 강제로 다운로드하여 장착합니다!
 def get_korean_font():
     font_path = "NanumGothic.ttf"
     if not os.path.exists(font_path):
         print("⬇️ 한글 폰트 자동 다운로드 중...")
-        url = "https://github.com/naver/nanumfont/raw/master/NanumFont_TTF_ALL/NanumGothic.ttf"
+        # 💡 [핵심 해결] 절대 끊어지지 않는 구글 공식 폰트 저장소 링크로 교체!
+        url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
         try:
             urllib.request.urlretrieve(url, font_path)
+            print("✅ 한글 폰트 다운로드 성공!")
         except Exception as e:
             print(f"⚠️ 폰트 다운로드 실패: {e}")
             return ImageFont.load_default()
@@ -44,7 +45,7 @@ def make_light_gif(image_paths, output_path, meta):
         raw_imgs.append(img)
     
     target_w, target_h = raw_imgs[0].size
-    font = get_korean_font()  # 한글 폰트 불러오기
+    font = get_korean_font()
     
     img_list = []
     for img in raw_imgs:
@@ -57,11 +58,9 @@ def make_light_gif(image_paths, output_path, meta):
         place_str = meta.get('place', '')
         msg_str = meta.get('message', '')
         
-        # 에러를 유발하는 이모지를 빼고, 깔끔하고 감성적인 폴라로이드 스타일로 변경
         text_line1 = f"[{date_str}]  {place_str}"
         text_line2 = f"\" {msg_str} \""
         
-        # 텍스트 색상을 진한 회색으로 하여 감성 극대화
         draw.text((30, target_h + 30), text_line1, fill="#555555", font=font)
         draw.text((30, target_h + 80), text_line2, fill="#111111", font=font)
         
