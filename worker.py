@@ -16,23 +16,26 @@ s3 = boto3.client('s3', region_name=AWS_REGION)
 sqs = boto3.client('sqs', region_name=AWS_REGION)
 
 def make_light_gif(image_paths, output_path):
-    print(f"🎬 비율 유지 & 초경량 GIF 생성 시작: {image_paths}")
+    print(f"🎬 비율 유지 & 똑바로 세운 초경량 GIF 생성 시작: {image_paths}")
     
     img_list = []
     for path in image_paths:
         img = Image.open(path)
-        # 💡 [핵심 다이어트] 스마트폰 고화질 4K 사진을 서버가 1초 만에 소화할 수 있게 즉시 축소 (비율 유지)
+        
+        # 💡 [핵심 해결책] 스마트폰 사진의 숨겨진 회전 꼬리표(EXIF)를 읽어서 무조건 똑바로 세워줍니다!
+        img = ImageOps.exif_transpose(img)
+        
+        # 다이어트 (스마트폰 고화질 사진을 가볍게 축소)
         img.thumbnail((800, 800), Image.Resampling.LANCZOS)
         img_list.append(img)
     
-    # 축소된 첫 번째 이미지의 크기를 기준 캔버스로 설정
+    # 첫 번째 이미지 크기를 기준 캔버스로 설정
     target_size = img_list[0].size
     
     resized_images = []
     for img in img_list:
-        # 비율을 유지하며 빈 공간을 검은색('black')으로 패딩 처리 (찌그러짐 방지)
+        # 비율 유지하며 빈 공간 검은색 패딩
         padded_img = ImageOps.pad(img, target_size, color='black')
-        
         if padded_img.mode != 'RGB':
             padded_img = padded_img.convert('RGB')
         resized_images.append(padded_img)
