@@ -1,10 +1,10 @@
 import time
 
 def process_video_and_render(age, height, weight, photos):
-    # 1. 기존 5.10.20 영상 제작 로직 (군더더기 없는 순수 영상 결합)
-    # 대표님의 기존 영상 렌더링 코드가 들어가는 자리입니다.
-    # time.sleep(10) # 10초 이내 영상 제작 시뮬레이션
-    video_url = "/static/chalna_movie.mp4" # 완성된 영상의 저장 경로 (예시)
+    # 1. 기존 5.10.20 영상 제작 로직 (임시 10초 대기 시뮬레이션)
+    # 차후 대표님의 진짜 렌더링 코드를 이 자리에 얹습니다.
+    # time.sleep(10) 
+    video_url = "/static/chalna_movie.mp4" # 완성된 영상 저장 경로 예시
 
     # 2. 키/체중 유무에 따른 동적 텍스트 생성
     if height or weight:
@@ -50,4 +50,4 @@ def process_video_and_render(age, height, weight, photos):
     </html>
     """
     
-    return RESULT_HTML # 완성된 HTML 덩어리를 app.py로 반환
+    return RESULT_HTML
