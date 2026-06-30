@@ -1,8 +1,7 @@
- 
-Pillow==9.5.0
+Pillow
 imageio
 boto3
-moviepy==1.0.3
+moviepy
 python-dotenv
 flask
 gunicorn
