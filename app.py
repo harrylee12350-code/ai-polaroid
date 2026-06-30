@@ -82,4 +82,6 @@ def upload():
     return final_result_html # 완성된 결과 화면 송출
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    # 레일웨이(Railway) 포트 충돌 방지용 동적 할당 코드
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
