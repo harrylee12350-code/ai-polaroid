@@ -3,11 +3,10 @@ import uuid
 from PIL import Image, ImageOps
 from moviepy.editor import ImageSequenceClip
 
-def process_video_and_render(age, height, weight, photos):
+def process_video_and_render(mode, normal_title, normal_memo, age, height, weight, photos):
     # =================================================================
-    # 🎬 [1단계] 실전 영상 렌더링 엔진 (사진 합성 및 mp4 제작)
+    # 🎬 [1단계] 실전 영상 렌더링 엔진 (동일하게 완벽 유지)
     # =================================================================
-    
     static_dir = "static"
     if not os.path.exists(static_dir):
         os.makedirs(static_dir)
@@ -16,25 +15,17 @@ def process_video_and_render(age, height, weight, photos):
     os.makedirs(temp_dir)
     
     image_paths = []
-    # 스마트폰 세로 꽉 차는 사이즈 (Reels/Shorts 최적화 비율)
     target_size = (720, 1280) 
     
-    # 1-1. 부모님이 올린 사진들을 하나씩 꺼내서 예쁘게 다듬기
     for i, photo in enumerate(photos):
         if photo.filename == '':
             continue
         try:
-            # 사진 열기
             img = Image.open(photo)
-            
-            # 🚨 [핵심 추가 포인트] 스마트폰 회전 정보(EXIF)를 읽어서 사진을 올바르게 세움!
             img = ImageOps.exif_transpose(img)
-            
-            # 색상 모드 맞추기 및 크기 조절
             img = img.convert('RGB')
             img_resized = ImageOps.fit(img, target_size, Image.Resampling.LANCZOS)
             
-            # 임시 폴더에 저장
             temp_path = os.path.join(temp_dir, f"img_{i}.jpg")
             img_resized.save(temp_path)
             image_paths.append(temp_path)
@@ -42,7 +33,6 @@ def process_video_and_render(age, height, weight, photos):
             print(f"이미지 처리 오류: {e}")
             continue
 
-    # 1-2. 다듬어진 사진들을 이어 붙여서 하나의 영화(mp4)로 만들기
     if image_paths:
         clip = ImageSequenceClip(image_paths, fps=0.5)
         video_filename = f"chalna_{uuid.uuid4().hex[:8]}.mp4"
@@ -61,14 +51,20 @@ def process_video_and_render(age, height, weight, photos):
         video_url = ""
 
     # =================================================================
-    # 📝 [2단계] 결과 화면(HTML) 조립 및 출력
+    # 📝 [2단계] 선택한 '모드'에 맞춰 글씨 다르게 출력하기
     # =================================================================
-    if height or weight:
-        height_str = height if height else "?"
-        weight_str = weight if weight else "?"
-        growth_text = f"{height_str}cm / {weight_str}kg"
+    if mode == 'baby':
+        title_text = f"[ {age}의 성장 기록 ]" if age else "[ 아기 성장 기록 ]"
+        if height or weight:
+            h = height if height else "?"
+            w = weight if weight else "?"
+            sub_text = f"{h}cm / {w}kg"
+        else:
+            sub_text = "오늘도 쑥쑥 자라고 있어요!"
     else:
-        growth_text = "오늘도 쑥쑥 자라고 있어요!"
+        # 일반 모드일 때
+        title_text = f"[ {normal_title} ]" if normal_title else "[ 찰나의 순간 ]"
+        sub_text = normal_memo if normal_memo else "소중한 기억을 영화로 기록합니다"
 
     RESULT_HTML = f"""
     <!DOCTYPE html>
@@ -94,8 +90,8 @@ def process_video_and_render(age, height, weight, photos):
                 <video src="{video_url}" controls autoplay playsinline></video>
             </div>
             <div class="record-box">
-                <div class="age-text">[ {age}의 성장 기록 ]</div>
-                <div class="growth-data">{growth_text}</div>
+                <div class="age-text">{title_text}</div>
+                <div class="growth-data">{sub_text}</div>
             </div>
             <a href="{video_url}" download="chalna_movie.mp4" style="text-decoration: none;">
                 <button class="save-btn">💾 내 폰에 영화 저장하기</button>

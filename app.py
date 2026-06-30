@@ -1,10 +1,9 @@
 import os
 from flask import Flask, request
-import worker # worker.py 엔진 불러오기
+import worker
 
 app = Flask(__name__)
 
-# [프론트엔드] 입력 화면 HTML (app.py 내장)
 INDEX_HTML = """
 <!DOCTYPE html>
 <html lang="ko">
@@ -25,29 +24,63 @@ INDEX_HTML = """
         .file-upload-box { border: 2px dashed #ced4da; padding: 30px; text-align: center; border-radius: 10px; background: #f8f9fa; cursor: pointer; margin-top: 5px; transition: 0.3s; }
         .submit-btn { width: 100%; padding: 16px; background: #ffffff; border: 1px solid #ced4da; border-radius: 10px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 10px; }
     </style>
+    <script>
+        // 모드 전환에 따라 입력창을 바꾸는 자바스크립트 마법사
+        function toggleMode() {
+            const mode = document.querySelector('input[name="mode"]:checked').value;
+            const normalFields = document.getElementById('normal-fields');
+            const babyFields = document.getElementById('baby-fields');
+            const normalTitle = document.getElementById('normal_title');
+            const ageInput = document.getElementById('age');
+
+            if (mode === 'normal') {
+                normalFields.style.display = 'block';
+                babyFields.style.display = 'none';
+                normalTitle.required = true;
+                ageInput.required = false;
+            } else {
+                normalFields.style.display = 'none';
+                babyFields.style.display = 'block';
+                normalTitle.required = false;
+                ageInput.required = true;
+            }
+        }
+        window.onload = toggleMode; // 페이지 켜질 때 즉시 실행
+    </script>
 </head>
 <body>
     <div class="container">
-        <div class="form-group">
-            <label class="title">서비스 모드를 선택해 주세요</label>
-            <div class="radio-group">
-                <label><input type="radio" name="mode" value="normal" checked> 일반 모드 (상세 기록)</label>
-                <label><input type="radio" name="mode" value="baby"> 👶 아기 모드 (성장 기록)</label>
+        <form action="/upload" method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <label class="title">서비스 모드를 선택해 주세요</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="mode" value="normal" checked onchange="toggleMode()"> 일반 모드 (상세 기록)</label>
+                    <label><input type="radio" name="mode" value="baby" onchange="toggleMode()"> 👶 아기 모드 (성장 기록)</label>
+                </div>
             </div>
-        </div>
-        <div class="logo-title">🎬 찰나 - 당신의<br>순간을 영화로</div>
-        <form action="/upload" method="POST" enctype="multipart/form-data" style="border-bottom: none;">
+            <div class="logo-title">🎬 찰나 - 당신의<br>순간을 영화로</div>
+            
             <div class="form-group" style="border-bottom: none; padding-bottom: 0;">
-                <label class="title" for="age" style="margin-bottom: 5px;">아이 연령</label>
-                <input type="text" id="age" name="age" class="form-control" placeholder="예: 1년 7개월" required style="margin-bottom: 20px;">
-                <div class="row" style="margin-bottom: 20px;">
-                    <div class="col">
-                        <label class="title" for="height">키 (cm)</label>
-                        <input type="number" id="height" name="height" class="form-control" placeholder="예: 105" step="0.1">
-                    </div>
-                    <div class="col">
-                        <label class="title" for="weight">체중 (kg)</label>
-                        <input type="number" id="weight" name="weight" class="form-control" placeholder="예: 17" step="0.1">
+                
+                <div id="normal-fields">
+                    <label class="title" for="normal_title" style="margin-bottom: 5px;">영상 제목</label>
+                    <input type="text" id="normal_title" name="normal_title" class="form-control" placeholder="예: 2026년 여름 제주도" style="margin-bottom: 20px;">
+                    <label class="title" for="normal_memo" style="margin-bottom: 5px;">기억할 메모</label>
+                    <input type="text" id="normal_memo" name="normal_memo" class="form-control" placeholder="예: 우리들의 완벽했던 하루" style="margin-bottom: 20px;">
+                </div>
+
+                <div id="baby-fields" style="display: none;">
+                    <label class="title" for="age" style="margin-bottom: 5px;">아이 연령</label>
+                    <input type="text" id="age" name="age" class="form-control" placeholder="예: 1년 7개월" style="margin-bottom: 20px;">
+                    <div class="row" style="margin-bottom: 20px;">
+                        <div class="col">
+                            <label class="title" for="height">키 (cm)</label>
+                            <input type="number" id="height" name="height" class="form-control" placeholder="예: 105" step="0.1">
+                        </div>
+                        <div class="col">
+                            <label class="title" for="weight">체중 (kg)</label>
+                            <input type="number" id="weight" name="weight" class="form-control" placeholder="예: 17" step="0.1">
+                        </div>
                     </div>
                 </div>
                 
@@ -74,12 +107,17 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload():
+    # 프론트엔드에서 넘어오는 모든 정보(모드 포함)를 싹 수집합니다
+    mode = request.form.get('mode', 'normal')
+    normal_title = request.form.get('normal_title', '')
+    normal_memo = request.form.get('normal_memo', '')
     age = request.form.get('age', '')
     height = request.form.get('height', '')
     weight = request.form.get('weight', '')
     photos = request.files.getlist('photos')
 
-    final_result_html = worker.process_video_and_render(age, height, weight, photos)
+    # worker.py로 모든 정보를 넘겨줍니다
+    final_result_html = worker.process_video_and_render(mode, normal_title, normal_memo, age, height, weight, photos)
     
     return final_result_html
 
