@@ -22,7 +22,7 @@ INDEX_HTML = """
         .form-control { width: 100%; padding: 14px; border: 1px solid #ced4da; border-radius: 10px; box-sizing: border-box; font-size: 1em; margin-top: 5px; }
         .row { display: flex; gap: 15px; }
         .col { flex: 1; }
-        .file-upload-box { border: 2px dashed #ced4da; padding: 30px; text-align: center; border-radius: 10px; background: #f8f9fa; cursor: pointer; margin-top: 5px; }
+        .file-upload-box { border: 2px dashed #ced4da; padding: 30px; text-align: center; border-radius: 10px; background: #f8f9fa; cursor: pointer; margin-top: 5px; transition: 0.3s; }
         .submit-btn { width: 100%; padding: 16px; background: #ffffff; border: 1px solid #ced4da; border-radius: 10px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 10px; }
     </style>
 </head>
@@ -50,12 +50,16 @@ INDEX_HTML = """
                         <input type="number" id="weight" name="weight" class="form-control" placeholder="예: 17" step="0.1">
                     </div>
                 </div>
+                
                 <label class="title">사진 2~5장 업로드</label>
                 <div class="file-upload-box" onclick="document.getElementById('photos').click()">
-                    <span style="font-size: 1.2em; display: block; margin-bottom: 8px;">↑ Upload</span>
-                    <span style="color: #6c757d; font-size: 0.85em;">200MB per file • JPG, PNG</span>
+                    <span id="upload-text" style="font-size: 1.2em; display: block; margin-bottom: 8px; font-weight: bold;">↑ Upload</span>
+                    <span id="upload-subtext" style="color: #6c757d; font-size: 0.85em;">200MB per file • JPG, PNG</span>
                 </div>
-                <input type="file" id="photos" name="photos" multiple accept="image/*" style="display: none;" required>
+                <input type="file" id="photos" name="photos" multiple accept="image/*" style="display: none;" required 
+                       onchange="document.getElementById('upload-text').innerText = this.files.length + '장의 사진이 선택되었습니다 ✅'; 
+                                 document.getElementById('upload-text').style.color = '#27ae60';
+                                 document.getElementById('upload-subtext').innerText = '이제 아래 시작 버튼을 눌러주세요!';">
             </div>
             <button type="submit" class="submit-btn">🚀 찰나 영화 인화 시작</button>
         </form>
@@ -66,22 +70,19 @@ INDEX_HTML = """
 
 @app.route('/')
 def index():
-    return INDEX_HTML # 입력 화면 송출
+    return INDEX_HTML
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    # 1. 부모님이 입력한 새로운 데이터 수집
     age = request.form.get('age', '')
     height = request.form.get('height', '')
     weight = request.form.get('weight', '')
     photos = request.files.getlist('photos')
 
-    # 2. worker.py로 데이터 전송 및 완성된 결과 화면(HTML) 응답받기
     final_result_html = worker.process_video_and_render(age, height, weight, photos)
     
-    return final_result_html # 완성된 결과 화면 송출
+    return final_result_html
 
 if __name__ == '__main__':
-    # 레일웨이(Railway) 포트 충돌 방지용 동적 할당 코드
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
