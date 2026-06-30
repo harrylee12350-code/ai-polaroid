@@ -1,95 +1,85 @@
-import streamlit as st
-import boto3
 import os
-import json
-import uuid
-import time
-from datetime import datetime
-from dotenv import load_dotenv
+from flask import Flask, request
+import worker # worker.py 엔진 불러오기
 
-# 1. 설정 및 인증 (오류 방지)
-load_dotenv()
-S3_BUCKET = "aipola-temp-storage-1782548118"
-SQS_URL = os.getenv("SQS_QUEUE_URL", "https://sqs.ap-northeast-2.amazonaws.com/737138011566/aipola-render-queue")
+app = Flask(__name__)
 
-# S3/SQS 클라이언트 초기화
-s3 = boto3.client('s3', region_name="ap-northeast-2")
-sqs = boto3.client('sqs', region_name="ap-northeast-2")
+# [프론트엔드] 입력 화면 HTML (app.py 내장)
+INDEX_HTML = """
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chalna - 찰나 영화 인화</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #f8f9fa; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .logo-title { font-size: 2em; font-weight: 900; margin-bottom: 20px; color: #2c3e50; }
+        .form-group { margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        .form-group label.title { display: block; font-weight: bold; margin-bottom: 15px; color: #495057; font-size: 1.05em; }
+        .radio-group label { display: block; margin-bottom: 10px; font-size: 1em; cursor: pointer; }
+        .form-control { width: 100%; padding: 14px; border: 1px solid #ced4da; border-radius: 10px; box-sizing: border-box; font-size: 1em; margin-top: 5px; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        .file-upload-box { border: 2px dashed #ced4da; padding: 30px; text-align: center; border-radius: 10px; background: #f8f9fa; cursor: pointer; margin-top: 5px; }
+        .submit-btn { width: 100%; padding: 16px; background: #ffffff; border: 1px solid #ced4da; border-radius: 10px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form-group">
+            <label class="title">서비스 모드를 선택해 주세요</label>
+            <div class="radio-group">
+                <label><input type="radio" name="mode" value="normal" checked> 일반 모드 (상세 기록)</label>
+                <label><input type="radio" name="mode" value="baby"> 👶 아기 모드 (성장 기록)</label>
+            </div>
+        </div>
+        <div class="logo-title">🎬 찰나 - 당신의<br>순간을 영화로</div>
+        <form action="/upload" method="POST" enctype="multipart/form-data" style="border-bottom: none;">
+            <div class="form-group" style="border-bottom: none; padding-bottom: 0;">
+                <label class="title" for="age" style="margin-bottom: 5px;">아이 연령</label>
+                <input type="text" id="age" name="age" class="form-control" placeholder="예: 1년 7개월" required style="margin-bottom: 20px;">
+                <div class="row" style="margin-bottom: 20px;">
+                    <div class="col">
+                        <label class="title" for="height">키 (cm)</label>
+                        <input type="number" id="height" name="height" class="form-control" placeholder="예: 105" step="0.1">
+                    </div>
+                    <div class="col">
+                        <label class="title" for="weight">체중 (kg)</label>
+                        <input type="number" id="weight" name="weight" class="form-control" placeholder="예: 17" step="0.1">
+                    </div>
+                </div>
+                <label class="title">사진 2~5장 업로드</label>
+                <div class="file-upload-box" onclick="document.getElementById('photos').click()">
+                    <span style="font-size: 1.2em; display: block; margin-bottom: 8px;">↑ Upload</span>
+                    <span style="color: #6c757d; font-size: 0.85em;">200MB per file • JPG, PNG</span>
+                </div>
+                <input type="file" id="photos" name="photos" multiple accept="image/*" style="display: none;" required>
+            </div>
+            <button type="submit" class="submit-btn">🚀 찰나 영화 인화 시작</button>
+        </form>
+    </div>
+</body>
+</html>
+"""
 
-st.set_page_config(page_title="찰나 (Chalna)", page_icon="🎬", layout="centered")
+@app.route('/')
+def index():
+    return INDEX_HTML # 입력 화면 송출
 
-# 2. UI 및 모드별 로직
-mode = st.radio("서비스 모드를 선택해 주세요", ["일반 모드 (상세 기록)", "👶 아기 모드 (간편 기록)"], horizontal=True)
-st.write("---")
+@app.route('/upload', methods=['POST'])
+def upload():
+    # 1. 부모님이 입력한 새로운 데이터 수집
+    age = request.form.get('age', '')
+    height = request.form.get('height', '')
+    weight = request.form.get('weight', '')
+    photos = request.files.getlist('photos')
 
-# 연령대별 추천 문구 프리셋
-presets = {
-    "신생아(0~1세)": ["천사 같은 우리 아기", "건강하게 자라렴", "사랑해요, 아가야"],
-    "영유아(2~3세)": ["오늘도 무럭무럭!", "어디든 찰나!", "귀염둥이 성장 중"],
-    "유아(4~5세)": ["벌써 이렇게 컸네!", "사랑스러운 내 보물", "최고의 찰나!"]
-}
+    # 2. worker.py로 데이터 전송 및 완성된 결과 화면(HTML) 응답받기
+    final_result_html = worker.process_video_and_render(age, height, weight, photos)
+    
+    return final_result_html # 완성된 결과 화면 송출
 
-if mode == "👶 아기 모드 (간편 기록)":
-    st.title("👶 찰나 - 우리 아기 감성 폴라로이드")
-    age_group = st.selectbox("아기 연령대를 선택하세요", list(presets.keys()))
-    place_str = st.text_input("장소", value="우리집")
-    message_str = st.selectbox("할머니, 부모님께 보낼 예쁜 마음", presets[age_group])
-    date_str = datetime.now().strftime("%Y.%m.%d")
-else:
-    st.title("🎬 찰나 - 당신의 순간을 영화로")
-    selected_date = st.date_input("추억의 날짜", datetime.now())
-    date_str = selected_date.strftime("%Y.%m.%d")
-    place_str = st.text_input("추억의 장소", placeholder="예: 한강공원")
-    message_str = st.text_input("나만의 멘트 (20자 이내)", max_chars=20)
-
-uploaded_files = st.file_uploader("사진 2~5장 업로드", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
-
-# 3. 인화 처리 (안정성 강화)
-if st.button("🚀 찰나 영화 인화 시작"):
-    if not uploaded_files:
-        st.warning("사진을 업로드해 주세요!")
-    elif not (2 <= len(uploaded_files) <= 5):
-        st.error("사진은 2~5장 업로드 가능합니다.")
-    else:
-        try:
-            request_id = str(uuid.uuid4())
-            s3_keys = []
-            
-            # S3 업로드 루프
-            for i, file in enumerate(uploaded_files):
-                ext = file.name.split('.')[-1]
-                key = f"uploads/{request_id}/image_{i+1}.{ext}"
-                s3.upload_fileobj(file, S3_BUCKET, key)
-                s3_keys.append(key)
-            
-            # 큐 전달
-            payload = {
-                "request_id": request_id, 
-                "s3_keys": s3_keys, 
-                "meta": {"date": date_str, "place": place_str, "message": message_str}
-            }
-            sqs.send_message(QueueUrl=SQS_URL, MessageBody=json.dumps(payload))
-            
-            # 렌더링 대기 처리 (폴링)
-            with st.spinner("🎬 찰나 영화 인화 중... 잠시만 기다려 주세요!"):
-                s3_gif_key = f"rendered/{request_id}.gif"
-                for _ in range(30):
-                    try:
-                        s3.head_object(Bucket=S3_BUCKET, Key=s3_gif_key)
-                        gif_ready = True
-                        break
-                    except:
-                        time.sleep(2)
-                else:
-                    gif_ready = False
-            
-            if gif_ready:
-                gif_url = s3.generate_presigned_url('get_object', Params={'Bucket': S3_BUCKET, 'Key': s3_gif_key}, ExpiresIn=3600)
-                st.image(gif_url, use_container_width=True)
-                gif_bytes = s3.get_object(Bucket=S3_BUCKET, Key=s3_gif_key)['Body'].read()
-                st.download_button("💾 내 폰에 영화 저장하기", data=gif_bytes, file_name=f"Chalna_{date_str}.gif", mime="image/gif")
-            else:
-                st.error("인화 서버가 바쁩니다. 잠시 후 '인화 시작' 버튼을 다시 눌러주세요.")
-                
-        except Exception as e:
-            st.error(f"시스템 에러 발생: {e}")
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)

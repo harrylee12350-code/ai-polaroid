@@ -1,129 +1,53 @@
-import os
 import time
-import json
-import uuid
-import boto3
-import urllib.request
-from PIL import Image, ImageOps, ImageDraw, ImageFont
-from dotenv import load_dotenv
 
-load_dotenv()
+def process_video_and_render(age, height, weight, photos):
+    # 1. 기존 5.10.20 영상 제작 로직 (군더더기 없는 순수 영상 결합)
+    # 대표님의 기존 영상 렌더링 코드가 들어가는 자리입니다.
+    # time.sleep(10) # 10초 이내 영상 제작 시뮬레이션
+    video_url = "/static/chalna_movie.mp4" # 완성된 영상의 저장 경로 (예시)
 
-S3_BUCKET = "aipola-temp-storage-1782548118"
-SQS_URL = os.getenv("SQS_QUEUE_URL", "https://sqs.ap-northeast-2.amazonaws.com/737138011566/aipola-render-queue")
-AWS_REGION = "ap-northeast-2"
+    # 2. 키/체중 유무에 따른 동적 텍스트 생성
+    if height or weight:
+        height_str = height if height else "?"
+        weight_str = weight if weight else "?"
+        growth_text = f"{height_str}cm / {weight_str}kg"
+    else:
+        growth_text = "오늘도 쑥쑥 자라고 있어요!"
 
-s3 = boto3.client('s3', region_name=AWS_REGION)
-sqs = boto3.client('sqs', region_name=AWS_REGION)
-
-def get_korean_font():
-    font_path = "NanumGothic.ttf"
-    if not os.path.exists(font_path):
-        print("⬇️ 한글 폰트 자동 다운로드 중...")
-        # 💡 [핵심 해결] 절대 끊어지지 않는 구글 공식 폰트 저장소 링크로 교체!
-        url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
-        try:
-            urllib.request.urlretrieve(url, font_path)
-            print("✅ 한글 폰트 다운로드 성공!")
-        except Exception as e:
-            print(f"⚠️ 폰트 다운로드 실패: {e}")
-            return ImageFont.load_default()
+    # 3. [프론트엔드] 결과 화면 HTML (worker.py 내장)
+    RESULT_HTML = f"""
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>찰나 영화 완성</title>
+        <style>
+            body {{ font-family: -apple-system, sans-serif; background: #f4f7f6; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }}
+            .container {{ max-width: 450px; width: 100%; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }}
+            .video-placeholder {{ width: 100%; background: #000; border-radius: 12px; margin-bottom: 20px; overflow: hidden; }}
+            .video-placeholder video {{ width: 100%; max-height: 60vh; object-fit: contain; }}
+            .record-box {{ margin-bottom: 25px; padding: 15px; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #27ae60; }}
+            .age-text {{ color: #2c3e50; font-size: 1.1em; font-weight: bold; margin-bottom: 5px; }}
+            .growth-data {{ color: #27ae60; font-size: 1.3em; font-weight: 900; }}
+            .save-btn {{ width: 100%; padding: 16px; background: #fff; border: 1px solid #ced4da; border-radius: 12px; font-size: 1.1em; font-weight: bold; cursor: pointer; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="video-placeholder">
+                <video src="{video_url}" controls autoplay playsinline></video>
+            </div>
+            <div class="record-box">
+                <div class="age-text">[ {age} 의 성장 기록 ]</div>
+                <div class="growth-data">{growth_text}</div>
+            </div>
+            <a href="{video_url}" download="chalna_movie.mp4" style="text-decoration: none;">
+                <button class="save-btn">💾 내 폰에 영화 저장하기</button>
+            </a>
+        </div>
+    </body>
+    </html>
+    """
     
-    try:
-        return ImageFont.truetype(font_path, 24)
-    except:
-        return ImageFont.load_default()
-
-def make_light_gif(image_paths, output_path, meta):
-    print(f"🎬 비율 유지 & 텍스트 정밀 인화 시작: {meta}")
-    
-    raw_imgs = []
-    for path in image_paths:
-        img = Image.open(path)
-        img = ImageOps.exif_transpose(img)
-        img.thumbnail((800, 800), Image.Resampling.LANCZOS)
-        raw_imgs.append(img)
-    
-    target_w, target_h = raw_imgs[0].size
-    font = get_korean_font()
-    
-    img_list = []
-    for img in raw_imgs:
-        padded_img = ImageOps.pad(img, (target_w, target_h), color='white')
-        canvas = Image.new("RGB", (target_w, target_h + 140), "white")
-        canvas.paste(padded_img, (0, 0))
-        
-        draw = ImageDraw.Draw(canvas)
-        date_str = meta.get('date', '')
-        place_str = meta.get('place', '')
-        msg_str = meta.get('message', '')
-        
-        text_line1 = f"[{date_str}]  {place_str}"
-        text_line2 = f"\" {msg_str} \""
-        
-        draw.text((30, target_h + 30), text_line1, fill="#555555", font=font)
-        draw.text((30, target_h + 80), text_line2, fill="#111111", font=font)
-        
-        img_list.append(canvas)
-    
-    img_list[0].save(
-        output_path,
-        save_all=True,
-        append_images=img_list[1:],
-        duration=2000,
-        loop=0
-    )
-    print(f"✅ 폴라로이드 찰나 무비 생성 완료: {output_path}")
-    return output_path
-
-def process_queue():
-    print("🚀 AI Pola 찰나 초경량 다이어트 공장 가동 시작! 주문을 기다립니다...")
-    while True:
-        try:
-            response = sqs.receive_message(QueueUrl=SQS_URL, MaxNumberOfMessages=1, WaitTimeSeconds=20)
-            
-            if 'Messages' in response:
-                for message in response['Messages']:
-                    receipt_handle = message['ReceiptHandle']
-                    body = message['Body']
-                    local_image_paths = []
-                    
-                    try:
-                        order_data = json.loads(body)
-                        request_id = order_data.get("request_id", str(uuid.uuid4()))
-                        s3_image_keys = order_data.get('s3_keys', [])
-                        meta = order_data.get('meta', {'date': '', 'place': '', 'message': ''})
-                    except Exception as parse_err:
-                        print(f"❌ 주문서 파싱 실패: {parse_err}")
-                        sqs.delete_message(QueueUrl=SQS_URL, ReceiptHandle=receipt_handle)
-                        continue
-
-                    print(f"📦 주문 접수 완료! 번호: {request_id}")
-                    local_gif_path = f"render_{request_id}.gif"
-                    s3_gif_key = f"rendered/{request_id}.gif"
-
-                    try:
-                        for i, s3_key in enumerate(s3_image_keys):
-                            local_img_path = f"temp_{request_id}_{i}.jpg"
-                            s3.download_file(S3_BUCKET, s3_key, local_img_path)
-                            local_image_paths.append(local_img_path)
-                        
-                        make_light_gif(local_image_paths, local_gif_path, meta)
-                        s3.upload_file(local_gif_path, S3_BUCKET, s3_gif_key)
-                        print(f"☁️ S3 창고 배달 완료!: {s3_gif_key}")
-                        
-                    except Exception as inner_e:
-                        print(f"⚠️ 렌더링 실패: {inner_e}")
-                    finally:
-                        sqs.delete_message(QueueUrl=SQS_URL, ReceiptHandle=receipt_handle)
-                        for img_path in local_image_paths:
-                            if os.path.exists(img_path): os.remove(img_path)
-                        if os.path.exists(local_gif_path): os.remove(local_gif_path)
-            else:
-                pass
-        except Exception as e:
-            print(f"🚨 시스템 코어 에러: {e}")
-            time.sleep(5)
-
-if __name__ == "__main__":
-    process_queue()
+    return RESULT_HTML # 완성된 HTML 덩어리를 app.py로 반환
