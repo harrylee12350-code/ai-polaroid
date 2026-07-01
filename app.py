@@ -25,7 +25,7 @@ INDEX_HTML = """
         .submit-btn { width: 100%; padding: 16px; background: #ffffff; border: 1px solid #ced4da; border-radius: 10px; font-size: 1.1em; font-weight: bold; cursor: pointer; margin-top: 10px; }
     </style>
     <script>
-        // 모드 전환에 따라 입력창을 바꾸는 자바스크립트 마법사
+        // 1. 모드 전환 로직
         function toggleMode() {
             const mode = document.querySelector('input[name="mode"]:checked').value;
             const normalFields = document.getElementById('normal-fields');
@@ -45,12 +45,50 @@ INDEX_HTML = """
                 ageInput.required = true;
             }
         }
-        window.onload = toggleMode; // 페이지 켜질 때 즉시 실행
+        
+        // 2. 사진 선택 시 실시간 피드백
+        function handleFileSelect(input) {
+            const count = input.files.length;
+            const text = document.getElementById('upload-text');
+            const subtext = document.getElementById('upload-subtext');
+            
+            if (count === 0) return;
+            
+            if (count < 2) {
+                text.innerText = '1장만 선택됨 (최소 2장 필요) ⚠️';
+                text.style.color = '#e74c3c';
+                subtext.innerText = '카메라 촬영 대신 갤러리에서 여러 장을 선택해 주세요!';
+            } else if (count > 5) {
+                text.innerText = count + '장 선택됨 (최대 5장) ⚠️';
+                text.style.color = '#e74c3c';
+                subtext.innerText = '사진을 5장 이하로 줄여주세요.';
+            } else {
+                text.innerText = count + '장의 사진이 선택되었습니다 ✅';
+                text.style.color = '#27ae60';
+                subtext.innerText = '이제 아래 시작 버튼을 눌러주세요!';
+            }
+        }
+
+        // 3. 전송(Submit) 직전 수량 강제 검사
+        function validateForm() {
+            const fileInput = document.getElementById('photos');
+            if (fileInput.files.length < 2) {
+                alert("사진은 최소 2장 이상 선택해야 합니다.\\n(스마트폰 '사진 보관함' 또는 '갤러리'에서 여러 장을 동시 선택해 주세요!)");
+                return false; // 전송 차단
+            }
+            if (fileInput.files.length > 5) {
+                alert("사진은 최대 5장까지만 인화할 수 있습니다.");
+                return false; // 전송 차단
+            }
+            return true; // 전송 허용
+        }
+
+        window.onload = toggleMode;
     </script>
 </head>
 <body>
     <div class="container">
-        <form action="/upload" method="POST" enctype="multipart/form-data">
+        <form action="/upload" method="POST" enctype="multipart/form-data" onsubmit="return validateForm()">
             <div class="form-group">
                 <label class="title">서비스 모드를 선택해 주세요</label>
                 <div class="radio-group">
@@ -61,7 +99,6 @@ INDEX_HTML = """
             <div class="logo-title">🎬 찰나 - 당신의<br>순간을 영화로</div>
             
             <div class="form-group" style="border-bottom: none; padding-bottom: 0;">
-                
                 <div id="normal-fields">
                     <label class="title" for="normal_title" style="margin-bottom: 5px;">영상 제목</label>
                     <input type="text" id="normal_title" name="normal_title" class="form-control" placeholder="예: 2026년 여름 제주도" style="margin-bottom: 20px;">
@@ -84,15 +121,12 @@ INDEX_HTML = """
                     </div>
                 </div>
                 
-                <label class="title">사진 2~5장 업로드</label>
+                <label class="title">사진 2~5장 업로드 (갤러리 선택)</label>
                 <div class="file-upload-box" onclick="document.getElementById('photos').click()">
                     <span id="upload-text" style="font-size: 1.2em; display: block; margin-bottom: 8px; font-weight: bold;">↑ Upload</span>
-                    <span id="upload-subtext" style="color: #6c757d; font-size: 0.85em;">200MB per file • JPG, PNG</span>
+                    <span id="upload-subtext" style="color: #6c757d; font-size: 0.85em;">갤러리에서 여러 장을 선택하세요</span>
                 </div>
-                <input type="file" id="photos" name="photos" multiple accept="image/*" style="display: none;" required 
-                       onchange="document.getElementById('upload-text').innerText = this.files.length + '장의 사진이 선택되었습니다 ✅'; 
-                                 document.getElementById('upload-text').style.color = '#27ae60';
-                                 document.getElementById('upload-subtext').innerText = '이제 아래 시작 버튼을 눌러주세요!';">
+                <input type="file" id="photos" name="photos" multiple accept="image/*" style="display: none;" required onchange="handleFileSelect(this)">
             </div>
             <button type="submit" class="submit-btn">🚀 찰나 영화 인화 시작</button>
         </form>
@@ -107,7 +141,6 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    # 프론트엔드에서 넘어오는 모든 정보(모드 포함)를 싹 수집합니다
     mode = request.form.get('mode', 'normal')
     normal_title = request.form.get('normal_title', '')
     normal_memo = request.form.get('normal_memo', '')
@@ -116,9 +149,7 @@ def upload():
     weight = request.form.get('weight', '')
     photos = request.files.getlist('photos')
 
-    # worker.py로 모든 정보를 넘겨줍니다
     final_result_html = worker.process_video_and_render(mode, normal_title, normal_memo, age, height, weight, photos)
-    
     return final_result_html
 
 if __name__ == '__main__':

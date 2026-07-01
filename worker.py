@@ -4,8 +4,18 @@ from PIL import Image, ImageOps
 from moviepy.editor import ImageSequenceClip
 
 def process_video_and_render(mode, normal_title, normal_memo, age, height, weight, photos):
+    # 🚨 [백엔드 안전장치] 비정상적인 접근으로 1장만 넘어왔을 경우 서버에서 강제 반환
+    valid_photos = [photo for photo in photos if photo.filename != '']
+    if len(valid_photos) < 2:
+        return """
+        <script>
+            alert("서버 오류: 최소 2장 이상의 사진이 필요합니다. 뒤로가기를 눌러 다시 선택해 주세요.");
+            history.back();
+        </script>
+        """
+
     # =================================================================
-    # 🎬 [1단계] 실전 영상 렌더링 엔진 (동일하게 완벽 유지)
+    # 🎬 [1단계] 실전 영상 렌더링 엔진 
     # =================================================================
     static_dir = "static"
     if not os.path.exists(static_dir):
@@ -17,9 +27,7 @@ def process_video_and_render(mode, normal_title, normal_memo, age, height, weigh
     image_paths = []
     target_size = (720, 1280) 
     
-    for i, photo in enumerate(photos):
-        if photo.filename == '':
-            continue
+    for i, photo in enumerate(valid_photos):
         try:
             img = Image.open(photo)
             img = ImageOps.exif_transpose(img)
@@ -51,7 +59,7 @@ def process_video_and_render(mode, normal_title, normal_memo, age, height, weigh
         video_url = ""
 
     # =================================================================
-    # 📝 [2단계] 선택한 '모드'에 맞춰 글씨 다르게 출력하기
+    # 📝 [2단계] 모드별 텍스트 출력
     # =================================================================
     if mode == 'baby':
         title_text = f"[ {age}의 성장 기록 ]" if age else "[ 아기 성장 기록 ]"
@@ -62,7 +70,6 @@ def process_video_and_render(mode, normal_title, normal_memo, age, height, weigh
         else:
             sub_text = "오늘도 쑥쑥 자라고 있어요!"
     else:
-        # 일반 모드일 때
         title_text = f"[ {normal_title} ]" if normal_title else "[ 찰나의 순간 ]"
         sub_text = normal_memo if normal_memo else "소중한 기억을 영화로 기록합니다"
 
